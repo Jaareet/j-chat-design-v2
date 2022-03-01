@@ -1,20 +1,9 @@
-local chatInputActive = false
-local chatInputActivating = false
-local chatHidden = true
-local chatLoaded = false
+local chatInputActive, chatInputActivating, chatHidden, chatLoaded, Cfg = false, false, true, false, {
+    Suggestions = true;
+}
 
-RegisterNetEvent('chatMessage')
-RegisterNetEvent('chat:addTemplate')
-RegisterNetEvent('chat:addMessage')
-RegisterNetEvent('chat:addSuggestion')
-RegisterNetEvent('chat:addSuggestions')
-RegisterNetEvent('chat:removeSuggestion')
-RegisterNetEvent('chat:clear')
-
--- internal events
-RegisterNetEvent('__cfx_internal:serverPrint')
--- deprecated, use chat:addMessage
-AddEventHandler('chatMessage', function(author, color, text)
+-- EVENTS
+RegisterNetEvent('chatMessage', function(author, color, text)
     local args = {text}
     if author ~= "" then
         table.insert(args, 1, author)
@@ -28,8 +17,54 @@ AddEventHandler('chatMessage', function(author, color, text)
         }
     })
 end)
-
-AddEventHandler('__cfx_internal:serverPrint', function(msg)
+RegisterNetEvent('chat:addTemplate', function(id, html)
+    SendNUIMessage({
+        type = 'ON_TEMPLATE_ADD',
+        template = {
+            id = id,
+            html = html
+        }
+    })
+end)
+RegisterNetEvent('chat:addMessage', function(message)
+    message.bgcolor = message.color
+    SendNUIMessage({
+        type = 'ON_MESSAGE',
+        message = message
+    })
+end)
+RegisterNetEvent('chat:addSuggestion', function(name, help, params)
+    SendNUIMessage({
+        type = 'ON_SUGGESTION_ADD',
+        suggestion = {
+            name = name,
+            help = help,
+            params = params or nil
+        }
+    })
+end)
+RegisterNetEvent('chat:addSuggestions', function(suggestions)
+    if Cfg.Suggestions then 
+        for _, suggestion in ipairs(suggestions) do
+            SendNUIMessage({
+                type = 'ON_SUGGESTION_ADD',
+                suggestion = suggestion
+            })
+        end
+    end
+end)
+RegisterNetEvent('chat:removeSuggestion', function(name)
+    SendNUIMessage({
+        type = 'ON_SUGGESTION_REMOVE',
+        name = name
+    })
+end)
+RegisterNetEvent('chat:clear', function(name)
+    SendNUIMessage({
+        type = 'ON_CLEAR'
+    })
+end)
+RegisterNetEvent('__cfx_internal:serverPrint', function(msg)
     print(msg)
 
     SendNUIMessage({
@@ -41,58 +76,7 @@ AddEventHandler('__cfx_internal:serverPrint', function(msg)
         }
     })
 end)
-
-AddEventHandler('chat:addMessage', function(message)
-    message.bgcolor = message.color
-    SendNUIMessage({
-        type = 'ON_MESSAGE',
-        message = message
-    })
-end)
-
-AddEventHandler('chat:addSuggestion', function(name, help, params)
-    SendNUIMessage({
-        type = 'ON_SUGGESTION_ADD',
-        suggestion = {
-            name = name,
-            help = help,
-            params = params or nil
-        }
-    })
-end)
-
-AddEventHandler('chat:addSuggestions', function(suggestions)
-    for _, suggestion in ipairs(suggestions) do
-        SendNUIMessage({
-            type = 'ON_SUGGESTION_ADD',
-            suggestion = suggestion
-        })
-    end
-end)
-
-AddEventHandler('chat:removeSuggestion', function(name)
-    SendNUIMessage({
-        type = 'ON_SUGGESTION_REMOVE',
-        name = name
-    })
-end)
-
-AddEventHandler('chat:addTemplate', function(id, html)
-    SendNUIMessage({
-        type = 'ON_TEMPLATE_ADD',
-        template = {
-            id = id,
-            html = html
-        }
-    })
-end)
-
-AddEventHandler('chat:clear', function(name)
-    SendNUIMessage({
-        type = 'ON_CLEAR'
-    })
-end)
-
+-- NUI CALLBACKS
 RegisterNUICallback('chatResult', function(data, cb)
     chatInputActive = false
     SetNuiFocus(false)
@@ -113,7 +97,20 @@ RegisterNUICallback('chatResult', function(data, cb)
     cb('ok')
 end)
 
-local function refreshCommands()
+RegisterNUICallback('loaded', function(data, cb)
+    TriggerServerEvent('chat:init');
+
+    refreshCommands()
+    refreshThemes()
+
+    chatLoaded = true
+
+    cb('ok')
+end)
+
+-- FUNCTIONS
+
+refreshCommands = function()
     if GetRegisteredCommands then
         local registeredCommands = GetRegisteredCommands()
 
@@ -132,7 +129,7 @@ local function refreshCommands()
     end
 end
 
-local function refreshThemes()
+refreshThemes = function()
     local themes = {}
 
     for resIdx = 0, GetNumResources() - 1 do
@@ -159,30 +156,7 @@ local function refreshThemes()
     })
 end
 
-AddEventHandler('onClientResourceStart', function(resName)
-    Wait(500)
-    TriggerEvent("c-core_alertas:questalerta")
-    refreshCommands()
-    refreshThemes()
-end)
-
-AddEventHandler('onClientResourceStop', function(resName)
-    Wait(500)
-
-    refreshCommands()
-    refreshThemes()
-end)
-
-RegisterNUICallback('loaded', function(data, cb)
-    TriggerServerEvent('chat:init');
-
-    refreshCommands()
-    refreshThemes()
-
-    chatLoaded = true
-
-    cb('ok')
-end)
+-- COMMANDS
 
 RegisterCommand('chat', function()
     SetTextChatEnabled(false)
@@ -221,4 +195,15 @@ RegisterCommand('chat', function()
     end
 end)
 
+-- KEY MAPPINGS
+
 RegisterKeyMapping('chat', 'Abre el chat', 'keyboard', 'T')
+
+
+-- COMMANDS
+
+-- RegisterCommand("ooc", function(source, args)
+--     local args = table.concat(args, " ")
+--     TriggerEvent("chatMessage", "["..GetPlayerServerId(PlayerId()).."]".." [OOC]", {0,255,255}, args)
+--     -- TriggerServerEvent("chatMessage", -1, {27,27,27}, "^0[^1OOC^0] ^7" .. GetPlayerName(PlayerId()) .. "^7: " .. args)
+-- end)
